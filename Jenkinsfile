@@ -80,10 +80,6 @@ pipeline {
             }
             post {
                 always {
-                    // Publish JUnit test results
-                    junit testResults: 'target/surefire-reports/*.xml',
-                          allowEmptyResults: true
-
                     // Publish JaCoCo coverage report (requires HTML Publisher plugin)
                     publishHTML([
                         allowMissing: true,

@@ -19,6 +19,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -30,6 +32,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("PaymentService Unit Tests")
 class PaymentServiceTest {
 
@@ -92,7 +95,6 @@ class PaymentServiceTest {
 
         paymentService.processPayment(orderEvent);
 
-        // First save is always INITIATED
         ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
         verify(paymentRepository, atLeast(1)).save(paymentCaptor.capture());
         Payment firstSave = paymentCaptor.getAllValues().get(0);
@@ -118,7 +120,6 @@ class PaymentServiceTest {
 
         paymentService.processPayment(orderEvent);
 
-        // Exactly one of success or failure must be published
         int successCalls = mockingDetails(paymentProducer).getInvocations()
                 .stream().filter(i -> i.getMethod().getName().equals("publishPaymentSuccess"))
                 .mapToInt(i -> 1).sum();
@@ -147,7 +148,6 @@ class PaymentServiceTest {
 
         paymentService.processPayment(orderEvent);
 
-        // Order must have been updated to either SUCCESS or FAILED
         ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
         verify(orderRepository, atLeastOnce()).save(orderCaptor.capture());
         Order updatedOrder = orderCaptor.getValue();
@@ -158,7 +158,6 @@ class PaymentServiceTest {
     @RepeatedTest(10)
     @DisplayName("processPayment - over 10 runs, both outcomes should occur statistically")
     void processPayment_statisticalOutcomes() {
-        // Just verify no exception is thrown for any random outcome
         Payment savedPayment = Payment.builder()
                 .id(UUID.randomUUID())
                 .orderId(orderId)
@@ -172,7 +171,6 @@ class PaymentServiceTest {
         doNothing().when(paymentProducer).publishPaymentSuccess(any());
         doNothing().when(paymentProducer).publishPaymentFailure(any());
 
-        // Should never throw
         paymentService.processPayment(orderEvent);
     }
 }

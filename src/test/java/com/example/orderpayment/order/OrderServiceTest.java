@@ -18,6 +18,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -38,6 +40,9 @@ class OrderServiceTest {
     @Mock
     private OrderProducer orderProducer;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     @InjectMocks
     private OrderService orderService;
 
@@ -48,6 +53,8 @@ class OrderServiceTest {
     @BeforeEach
     void setUp() {
         orderId = UUID.randomUUID();
+
+        ReflectionTestUtils.setField(orderService, "eventPublisher", eventPublisher);
 
         validRequest = new CreateOrderRequest();
         validRequest.setCustomerId("CUST-001");
@@ -153,7 +160,7 @@ class OrderServiceTest {
     @Test
     @DisplayName("updateOrderStatus - invalid transition from terminal state throws exception")
     void updateOrderStatus_invalidTransition_throwsException() {
-        savedOrder.setStatus(OrderStatus.PAYMENT_SUCCESS); // terminal state
+        savedOrder.setStatus(OrderStatus.PAYMENT_SUCCESS);
         when(orderRepository.findById(orderId)).thenReturn(Optional.of(savedOrder));
 
         assertThatThrownBy(() -> orderService.updateOrderStatus(orderId, OrderStatus.PAYMENT_PROCESSING))
