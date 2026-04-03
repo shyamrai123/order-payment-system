@@ -1,7 +1,8 @@
 // ============================================================
 // Jenkinsfile — CI/CD Pipeline for Order Payment System
 // DockerHub: raishyam
-// Stages: Checkout → Build → Test → SonarQube → Quality Gate
+// Stages: Checkout → Build → Test → Wait for SonarQube
+//         → SonarQube Analysis → Quality Gate
 //         → Docker Build → Docker Push → Deploy
 // ============================================================
 
@@ -64,23 +65,24 @@ pipeline {
             post {
                 success {
                     archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
-                    echo "JAR archived successfully."
+                    echo 'JAR archived successfully.'
                 }
             }
         }
 
         // ================================================================
-        // Stage 3: Test (Unit + Integration via Testcontainers)
-        // Requires Docker socket mounted on Jenkins container
+        // Stage 3: Test (Unit + Integration)
+        // JaCoCo report generated via jacoco:report goal
         // ================================================================
         stage('Test') {
             steps {
                 echo '========== Test: Unit + Integration =========='
-                sh 'mvn test -B'
+                // jacoco:report generates target/site/jacoco/jacoco.xml
+                sh 'mvn test jacoco:report -B'
             }
             post {
                 always {
-                    // Publish JaCoCo coverage report (requires HTML Publisher plugin)
+                    // Publish JaCoCo HTML coverage report (requires HTML Publisher plugin)
                     publishHTML([
                         allowMissing: true,
                         alwaysLinkToLastBuild: true,
@@ -97,7 +99,36 @@ pipeline {
         }
 
         // ================================================================
-        // Stage 4: SonarQube Analysis
+        // Stage 4: Wait for SonarQube to be fully UP
+        // Polls /api/system/status every 15s, up to 20 attempts (5 min)
+        // ================================================================
+        stage('Wait for SonarQube') {
+            steps {
+                echo '========== Waiting for SonarQube to be ready =========='
+                sh '''
+                    for i in $(seq 1 20); do
+                        STATUS=$(curl -s http://sonarqube:9000/api/system/status \
+                            | grep -o '"status":"[^"]*"' \
+                            | cut -d: -f2 \
+                            | tr -d '"')
+                        echo "Attempt $i — SonarQube status: $STATUS"
+                        if [ "$STATUS" = "UP" ]; then
+                            echo "✅ SonarQube is UP and ready"
+                            exit 0
+                        fi
+                        sleep 15
+                    done
+                    echo "❌ SonarQube did not become ready within 5 minutes"
+                    exit 1
+                '''
+            }
+        }
+
+        // ================================================================
+        // Stage 5: SonarQube Analysis
+        // SONAR_TOKEN is injected automatically by withSonarQubeEnv —
+        // do NOT pass it via -Dsonar.token to avoid secret interpolation.
+        // Single quotes prevent Groovy from interpolating secrets.
         // Configure SonarQube server in: Jenkins > Manage Jenkins >
         //   Configure System > SonarQube servers (name = 'SonarQube')
         // ================================================================
@@ -105,22 +136,24 @@ pipeline {
             steps {
                 echo '========== SonarQube: Static Analysis =========='
                 withSonarQubeEnv('SonarQube') {
-                    sh """
+                    // Use single quotes — withSonarQubeEnv injects SONAR_TOKEN automatically
+                    sh '''
                         mvn sonar:sonar \
                             -Dsonar.projectKey=order-payment-system \
-                            -Dsonar.projectName='Order Payment System' \
+                            -Dsonar.projectName="Order Payment System" \
                             -Dsonar.java.coveragePlugin=jacoco \
                             -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
-                            -Dsonar.token=${SONAR_TOKEN} \
                             -B
-                    """
+                    '''
                 }
             }
         }
 
         // ================================================================
-        // Stage 5: Quality Gate
-        // SonarQube webhook must be configured to notify Jenkins
+        // Stage 6: Quality Gate
+        // SonarQube webhook must be configured to notify Jenkins:
+        //   SonarQube > Administration > Webhooks
+        //   URL: http://<jenkins-host>:8080/sonarqube-webhook/
         // ================================================================
         stage('Quality Gate') {
             steps {
@@ -132,7 +165,7 @@ pipeline {
         }
 
         // ================================================================
-        // Stage 6: Docker Build
+        // Stage 7: Docker Build
         // ================================================================
         stage('Docker Build') {
             steps {
@@ -149,7 +182,7 @@ pipeline {
         }
 
         // ================================================================
-        // Stage 7: Docker Push → DockerHub (raishyam)
+        // Stage 8: Docker Push → DockerHub (raishyam)
         // ================================================================
         stage('Docker Push') {
             steps {
@@ -165,9 +198,9 @@ pipeline {
         }
 
         // ================================================================
-        // Stage 8: Deploy
+        // Stage 9: Deploy
         // Runs only on main or release/* branches
-        // Pulls new image and restarts app container (zero-downtime for stateless)
+        // Pulls new image and restarts app container
         // ================================================================
         stage('Deploy') {
             when {
@@ -190,7 +223,7 @@ pipeline {
                     echo 'Waiting 45s for Spring Boot startup...'
                     sleep 45
 
-                    # Health check on actuator endpoint (port 9090 mapped from 9091)
+                    # Health check on actuator endpoint
                     curl --fail http://localhost:9090/actuator/health || \\
                         (echo '❌ Health check failed!' && \\
                          docker-compose logs --tail=50 order-payment-app && \\
@@ -208,7 +241,7 @@ pipeline {
             echo "✅ Pipeline SUCCESS — Image: ${FULL_IMAGE_TAG}"
         }
         failure {
-            echo "❌ Pipeline FAILED — Check logs above."
+            echo '❌ Pipeline FAILED — Check logs above.'
         }
         cleanup {
             // Remove dangling images to reclaim disk space on Jenkins agent
