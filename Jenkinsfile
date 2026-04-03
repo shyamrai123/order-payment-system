@@ -24,6 +24,7 @@ pipeline {
         FULL_IMAGE_TAG      = "${IMAGE_NAME}:${params.IMAGE_TAG}"
 
         SONAR_TOKEN         = credentials('sonarqube-token')          // Jenkins credential ID
+        SONAR_HOST_URL      = 'http://sonarqube:9000'                 // FIX: explicit URL for Maven JVM DNS
         MAVEN_OPTS          = '-Xmx512m -XX:+UseContainerSupport'
     }
 
@@ -126,21 +127,20 @@ pipeline {
 
         // ================================================================
         // Stage 5: SonarQube Analysis
-        // SONAR_TOKEN is injected automatically by withSonarQubeEnv —
-        // do NOT pass it via -Dsonar.token to avoid secret interpolation.
+        // FIX: Added -Dsonar.host.url explicitly so Maven JVM can resolve
+        //      the SonarQube hostname (bypasses JVM DNS resolution issue).
+        // SONAR_TOKEN is injected automatically by withSonarQubeEnv.
         // Single quotes prevent Groovy from interpolating secrets.
-        // Configure SonarQube server in: Jenkins > Manage Jenkins >
-        //   Configure System > SonarQube servers (name = 'SonarQube')
         // ================================================================
         stage('SonarQube Analysis') {
             steps {
                 echo '========== SonarQube: Static Analysis =========='
                 withSonarQubeEnv('SonarQube') {
-                    // Use single quotes — withSonarQubeEnv injects SONAR_TOKEN automatically
                     sh '''
                         mvn sonar:sonar \
                             -Dsonar.projectKey=order-payment-system \
                             -Dsonar.projectName="Order Payment System" \
+                            -Dsonar.host.url=http://sonarqube:9000 \
                             -Dsonar.java.coveragePlugin=jacoco \
                             -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
                             -B
