@@ -180,10 +180,14 @@ services:
   # Code Quality: SonarQube
   # UI: http://localhost:9000
   # Default login: admin / admin (change on first login)
+  # FIX: Added mem_limit, mem_reservation and JVM heap settings
+  #      to prevent analysis freezing at 22% due to OOM
   # ============================================================
   sonarqube:
     image: sonarqube:10-community
     container_name: sonarqube
+    mem_limit: 3g                  # FIX: cap total memory to 3GB
+    mem_reservation: 2g            # FIX: guarantee 2GB reserved
     networks:
       - app-network
     depends_on:
@@ -200,6 +204,9 @@ services:
       SONAR_JDBC_USERNAME: ${SONAR_DB_USERNAME:-sonar}
       SONAR_JDBC_PASSWORD: ${SONAR_DB_PASSWORD:-sonar}
       SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"    # disable for local dev
+      SONAR_WEB_JAVAOPTS: "-Xmx512m -Xms128m"      # FIX: Web server JVM heap
+      SONAR_CE_JAVAOPTS: "-Xmx1g -Xms128m"         # FIX: Compute Engine heap (runs analysis)
+      SONAR_SEARCH_JAVAOPTS: "-Xmx1g -Xms512m"     # FIX: Elasticsearch heap
     ulimits:
       nofile:
         soft: 65536
