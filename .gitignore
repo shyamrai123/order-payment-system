@@ -1,0 +1,24 @@
+# ---- Maven ----
+target/
+*.jar
+*.war
+*.ear
+
+# ---- IDE ----
+.idea/
+*.iml
+.vscode/
+*.class
+
+# ---- Secrets — NEVER commit these ----
+.env
+*.env
+!.env
+
+# ---- Logs ----
+logs/
+*.log
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
