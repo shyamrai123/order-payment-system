@@ -26,18 +26,18 @@ pipeline {
             }
         }
 
-    stage('Maven Build') {
-        steps {
-            sh """
-                docker run --rm \
-                -v /var/jenkins_home/workspace/order-payment-system:/app \
-                -v order-payment-system_maven-repo:/root/.m2 \
-                -w /app \
-                maven:3.9.5-eclipse-temurin-17 \
-                mvn clean package -DskipTests -B -ntp
-            """
-        }
+stage('Maven Build') {
+    steps {
+        sh """
+            docker run --rm \
+            -v order-payment-system_maven-repo:/root/.m2 \
+            --workdir /var/jenkins_home/workspace/order-payment-system \
+            -v /var/jenkins_home/workspace/order-payment-system:/var/jenkins_home/workspace/order-payment-system \
+            maven:3.9.5-eclipse-temurin-17 \
+            mvn clean package -DskipTests -B -ntp
+        """
     }
+}
 
         stage('Build Docker Image') {
             steps {
