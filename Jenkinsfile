@@ -32,30 +32,25 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    sh """
+                        mvn sonar:sonar \
+                        -Dsonar.projectKey=order-payment-system \
+                        -Dsonar.scm.disabled=true
+                    """
+                }
+            }
+        }
+
+        stage('Docker Build') {
             steps {
                 sh """
                     docker build \
                     -t ${FULL_IMAGE_TAG} \
                     -t ${IMAGE_NAME}:latest .
                 """
-            }
-        }
-
-        stage('SonarQube Analysis') {
-            steps {
-                withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
-                    sh """
-                        docker run --rm \
-                        --network order-payment-system_app-network \
-                        -e SONAR_HOST_URL=http://sonarqube:9000 \
-                        -e SONAR_TOKEN=\$SONAR_TOKEN \
-                        -e SONAR_SCANNER_OPTS="-Dsonar.projectKey=order-payment-system -Dsonar.scm.disabled=true" \
-                        -v \$PWD:/usr/src \
-                        -w /usr/src \
-                        sonarsource/sonar-scanner-cli
-                    """
-                }
             }
         }
 
