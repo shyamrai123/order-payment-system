@@ -1,9 +1,4 @@
-# ============================================================
-# docker-compose.yml — Order Payment System
-# Services: Zookeeper, Kafka, PostgreSQL, App,
-#           Jenkins, SonarQube, SonarQube DB
-# All credentials via .env file (never hardcoded)
-# ============================================================
+version: '3.9'
 
 networks:
   app-network:
@@ -20,68 +15,39 @@ volumes:
 
 services:
 
-  # ============================================================
-  # Infrastructure: Zookeeper
-  # ============================================================
+  # ---------------- ZOOKEEPER ----------------
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
-    networks:
-      - app-network
+    networks: [app-network]
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    healthcheck:
-      test: ["CMD", "bash", "-c", "echo ruok | nc localhost 2181"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
     restart: unless-stopped
 
-  # ============================================================
-  # Infrastructure: Kafka
-  # ============================================================
+  # ---------------- KAFKA ----------------
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
-    networks:
-      - app-network
+    networks: [app-network]
     depends_on:
-      zookeeper:
-        condition: service_healthy
+      - zookeeper
     ports:
       - "9092:9092"
-      - "29092:29092"
     volumes:
       - kafka-data:/var/lib/kafka/data
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:29092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_NUM_PARTITIONS: 3
-      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
-    healthcheck:
-      test: ["CMD", "kafka-topics", "--bootstrap-server", "kafka:9092", "--list"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
     restart: unless-stopped
 
-  # ============================================================
-  # Infrastructure: PostgreSQL (App DB)
-  # ============================================================
+  # ---------------- POSTGRES ----------------
   postgres:
     image: postgres:15-alpine
     container_name: postgres
-    networks:
-      - app-network
+    networks: [app-network]
     ports:
       - "5432:5432"
     volumes:
@@ -90,29 +56,19 @@ services:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_NAME}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
     restart: unless-stopped
 
-  # ============================================================
-  # Application: Order Payment System
-  # ============================================================
+  # ---------------- APP ----------------
   order-payment-app:
     build: .
     image: raishyam/order-payment-system:latest
     container_name: order-payment-app
-    networks:
-      - app-network
+    networks: [app-network]
     depends_on:
-      kafka:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
+      - kafka
+      - postgres
     ports:
-      - "9090:9091"
+      - "9090:9090"   # ✅ FIXED
     environment:
       SPRING_PROFILES_ACTIVE: docker
       DB_HOST: postgres
@@ -121,100 +77,47 @@ services:
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      SECURITY_ADMIN_USER: ${SECURITY_ADMIN_USER}
-      SECURITY_ADMIN_PASSWORD: ${SECURITY_ADMIN_PASSWORD}
-      SECURITY_USER_USER: ${SECURITY_USER_USER}
-      SECURITY_USER_PASSWORD: ${SECURITY_USER_PASSWORD}
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9091/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 45s
     restart: unless-stopped
-    volumes:
-      - ./logs:/app/logs
 
-  # ============================================================
-  # CI/CD: Jenkins
-  # UI: http://localhost:8080
-  # ============================================================
+  # ---------------- JENKINS ----------------
   jenkins:
     image: jenkins/jenkins:lts-jdk17
     container_name: jenkins
-    networks:
-      - app-network
+    networks: [app-network]
     ports:
-      - "8080:8080"       # Jenkins UI
-      - "50000:50000"     # Jenkins agent port
+      - "8080:8080"
+      - "50000:50000"
     volumes:
       - jenkins-data:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock   # Docker-in-Docker access
-    environment:
-      JAVA_OPTS: "-Djenkins.install.runSetupWizard=false"
-    user: root                                        # needed for Docker socket access
+      - /var/run/docker.sock:/var/run/docker.sock
+    user: root
     restart: unless-stopped
 
-  # ============================================================
-  # Code Quality: SonarQube DB (PostgreSQL dedicated)
-  # ============================================================
+  # ---------------- SONAR DB ----------------
   sonarqube-db:
     image: postgres:15-alpine
     container_name: sonarqube-db
-    networks:
-      - app-network
+    networks: [app-network]
     volumes:
       - sonarqube-db-data:/var/lib/postgresql/data
     environment:
       POSTGRES_DB: sonarqube
-      POSTGRES_USER: ${SONAR_DB_USERNAME:-sonar}
-      POSTGRES_PASSWORD: ${SONAR_DB_PASSWORD:-sonar}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sonar -d sonarqube"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar
     restart: unless-stopped
 
-  # ============================================================
-  # Code Quality: SonarQube
-  # UI: http://localhost:9000
-  # Default login: admin / admin (change on first login)
-  # FIX: Added mem_limit, mem_reservation and JVM heap settings
-  #      to prevent analysis freezing at 22% due to OOM
-  # ============================================================
+  # ---------------- SONARQUBE ----------------
   sonarqube:
     image: sonarqube:10-community
     container_name: sonarqube
-    mem_limit: 3g                  # FIX: cap total memory to 3GB
-    mem_reservation: 2g            # FIX: guarantee 2GB reserved
-    networks:
-      - app-network
+    networks: [app-network]
     depends_on:
-      sonarqube-db:
-        condition: service_healthy
+      - sonarqube-db
     ports:
       - "9000:9000"
-    volumes:
-      - sonarqube-data:/opt/sonarqube/data
-      - sonarqube-logs:/opt/sonarqube/logs
-      - sonarqube-extensions:/opt/sonarqube/extensions
     environment:
       SONAR_JDBC_URL: jdbc:postgresql://sonarqube-db:5432/sonarqube
-      SONAR_JDBC_USERNAME: ${SONAR_DB_USERNAME:-sonar}
-      SONAR_JDBC_PASSWORD: ${SONAR_DB_PASSWORD:-sonar}
-      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"    # disable for local dev
-      SONAR_WEB_JAVAOPTS: "-Xmx512m -Xms128m"      # FIX: Web server JVM heap
-      SONAR_CE_JAVAOPTS: "-Xmx1g -Xms128m"         # FIX: Compute Engine heap (runs analysis)
-      SONAR_SEARCH_JAVAOPTS: "-Xmx1g -Xms512m"     # FIX: Elasticsearch heap
-    ulimits:
-      nofile:
-        soft: 65536
-        hard: 65536
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9000/api/system/status"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 60s
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
     restart: unless-stopped

@@ -1,56 +1,44 @@
-# ============================================================
-# Multi-stage Dockerfile (Production Ready)
-# ============================================================
-
 # ---- Stage 1: Build ----
 FROM maven:3.9.5-eclipse-temurin-17 AS builder
 
 WORKDIR /build
 
-# Copy pom.xml first (better caching)
-COPY pom.xml .
-RUN mvn dependency:go-offline -B
+# ✅ FIX 1: Force IPv4 (CRITICAL)
+ENV MAVEN_OPTS="-Djava.net.preferIPv4Stack=true"
 
-# Copy source code
+# ✅ FIX 2: Copy pom.xml first (cache layer)
+COPY pom.xml .
+
+# ✅ FIX 3: Add retry + no-transfer-progress
+RUN mvn -B -ntp dependency:go-offline || \
+    mvn -B -ntp dependency:go-offline
+
+# Copy source
 COPY src ./src
 
-# Build JAR (skip tests — run in Jenkins)
-RUN mvn clean package -DskipTests -B
+# ✅ FIX 4: Build with same IPv4 + optimized flags
+RUN mvn -B -ntp clean package -DskipTests
 
 
 # ---- Stage 2: Runtime ----
 FROM eclipse-temurin:17-jre-alpine
 
-# Create non-root user (security best practice)
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 WORKDIR /app
 
-# Copy JAR from builder
 COPY --from=builder /build/target/*.jar app.jar
 
-# Create logs directory
 RUN mkdir -p /app/logs && chown -R appuser:appgroup /app
 
 USER appuser
 
-# Expose port
 EXPOSE 9090
 
-# JVM tuning for container
-
-# Only ONE Entrypoint is allowed
-#ENTRYPOINT ["java",
-#  "-XX:+UseContainerSupport",
-#  "-XX:MaxRAMPercentage=75.0",
-#  "-Djava.security.egd=file:/dev/./urandom",
-#  "-jar", "app.jar"
-#]
-
-
-ENTRYPOINT ["java", \
-  "-XX:+UseContainerSupport", \
-  "-XX:MaxRAMPercentage=75.0", \
-  "-Djava.security.egd=file:/dev/./urandom", \
-  "-jar", "app.jar" \
+ENTRYPOINT ["java",
+  "-XX:+UseContainerSupport",
+  "-XX:MaxRAMPercentage=75.0",
+  "-Djava.net.preferIPv4Stack=true",
+  "-Djava.security.egd=file:/dev/./urandom",
+  "-jar", "app.jar"
 ]
