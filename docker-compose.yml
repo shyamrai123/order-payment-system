@@ -6,6 +6,7 @@ volumes:
   postgres-data:
   kafka-data:
   jenkins-data:
+  maven-repo:
   sonarqube-data:
   sonarqube-logs:
   sonarqube-extensions:
@@ -44,7 +45,7 @@ services:
       KAFKA_LOG_RETENTION_HOURS: 24
     restart: unless-stopped
 
-  # ---------------- POSTGRES (APP DB) ----------------
+  # ---------------- POSTGRES ----------------
   postgres:
     image: postgres:15-alpine
     container_name: postgres
@@ -61,12 +62,11 @@ services:
 
   # ---------------- APP ----------------
   order-payment-app:
-    build: .
     image: raishyam/order-payment-system:latest
     container_name: order-payment-app
     networks: [app-network]
     depends_on:
-      - postgres   # ✅ FIXED (removed kafka)
+      - postgres
     ports:
       - "9090:9090"
     environment:
@@ -91,6 +91,7 @@ services:
     volumes:
       - jenkins-data:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
+      - maven-repo:/root/.m2
     user: root
     restart: unless-stopped
 
