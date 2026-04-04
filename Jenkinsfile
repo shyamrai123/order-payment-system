@@ -41,9 +41,9 @@ pipeline {
                 withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
                     sh """
                         docker run --rm \
-                        --network app-network \
+                        --network order-payment-system_app-network \
                         -e SONAR_HOST_URL=http://sonarqube:9000 \
-                        -e SONAR_LOGIN=$SONAR_TOKEN \
+                        -e SONAR_LOGIN=\$SONAR_TOKEN \
                         -v \$PWD:/usr/src \
                         sonarsource/sonar-scanner-cli
                     """
@@ -54,8 +54,8 @@ pipeline {
         stage('Docker Push') {
             steps {
                 sh """
-                    echo ${DOCKER_CREDENTIALS_PSW} | docker login \
-                    -u ${DOCKER_CREDENTIALS_USR} --password-stdin
+                    echo \${DOCKER_CREDENTIALS_PSW} | docker login \
+                    -u \${DOCKER_CREDENTIALS_USR} --password-stdin
 
                     docker push ${FULL_IMAGE_TAG}
                     docker push ${IMAGE_NAME}:latest

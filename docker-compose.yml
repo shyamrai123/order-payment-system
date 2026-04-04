@@ -14,7 +14,6 @@ volumes:
 
 services:
 
-  # ---------------- ZOOKEEPER ----------------
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
@@ -23,7 +22,6 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
     restart: unless-stopped
 
-  # ---------------- KAFKA ----------------
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
@@ -42,7 +40,6 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
     restart: unless-stopped
 
-  # ---------------- POSTGRES ----------------
   postgres:
     image: postgres:15-alpine
     container_name: postgres
@@ -57,7 +54,6 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     restart: unless-stopped
 
-  # ---------------- APP ----------------
   order-payment-app:
     image: raishyam/order-payment-system:latest
     container_name: order-payment-app
@@ -77,9 +73,11 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     restart: unless-stopped
 
-  # ---------------- JENKINS ----------------
+  # ✅ FIXED: build from Dockerfile.jenkins so Docker CLI is available
   jenkins:
-    image: jenkins/jenkins:lts-jdk17
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
     container_name: jenkins
     networks: [app-network]
     ports:
@@ -91,7 +89,6 @@ services:
     user: root
     restart: unless-stopped
 
-  # ---------------- SONAR DB ----------------
   sonarqube-db:
     image: postgres:15-alpine
     container_name: sonarqube-db
@@ -104,7 +101,6 @@ services:
       POSTGRES_PASSWORD: sonar
     restart: unless-stopped
 
-  # ---------------- SONARQUBE ----------------
   sonarqube:
     image: sonarqube:10-community
     container_name: sonarqube
