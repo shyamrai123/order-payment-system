@@ -9,7 +9,7 @@ pipeline {
 
     environment {
         DOCKER_CREDENTIALS = credentials('dockerhub-credentials')
-        SONAR_AUTH_TOKEN = credentials('sonar-token')
+        SONAR_AUTH_TOKEN = credentials('sonarqube-token')   // ✅ FIXED
 
         IMAGE_NAME = "raishyam/order-payment-system"
         FULL_IMAGE_TAG = "${IMAGE_NAME}:${params.IMAGE_TAG}"
@@ -34,6 +34,21 @@ pipeline {
                     docker build --network=host \
                     -t ${FULL_IMAGE_TAG} \
                     -t ${IMAGE_NAME}:latest .
+                """
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                sh """
+                    docker run --rm \
+                    -v \$PWD:/app \
+                    -w /app \
+                    maven:3.9.5-eclipse-temurin-17 \
+                    mvn sonar:sonar \
+                    -Dsonar.projectKey=order-payment-system \
+                    -Dsonar.host.url=http://sonarqube:9000 \
+                    -Dsonar.login=${SONAR_AUTH_TOKEN}
                 """
             }
         }

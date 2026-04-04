@@ -14,7 +14,6 @@ volumes:
 
 services:
 
-  # ---------------- ZOOKEEPER ----------------
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: zookeeper
@@ -22,9 +21,7 @@ services:
     profiles: ["kafka"]
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
-    restart: unless-stopped
 
-  # ---------------- KAFKA ----------------
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: kafka
@@ -39,13 +36,8 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_LOG_RETENTION_HOURS: 24
-    restart: unless-stopped
 
-  # ---------------- POSTGRES ----------------
   postgres:
     image: postgres:15-alpine
     container_name: postgres
@@ -58,15 +50,14 @@ services:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-    restart: unless-stopped
 
-  # ---------------- APP ----------------
   order-payment-app:
     image: raishyam/order-payment-system:latest
     container_name: order-payment-app
     networks: [app-network]
     depends_on:
       - postgres
+      - kafka   # ✅ FIXED
     ports:
       - "9090:9090"
     environment:
@@ -77,9 +68,7 @@ services:
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    restart: unless-stopped
 
-  # ---------------- JENKINS ----------------
   jenkins:
     image: jenkins/jenkins:lts-jdk17
     container_name: jenkins
@@ -87,15 +76,12 @@ services:
     profiles: ["ci"]
     ports:
       - "8080:8080"
-      - "50000:50000"
     volumes:
       - jenkins-data:/var/jenkins_home
       - /var/run/docker.sock:/var/run/docker.sock
       - maven-repo:/root/.m2
     user: root
-    restart: unless-stopped
 
-  # ---------------- SONAR DB ----------------
   sonarqube-db:
     image: postgres:15-alpine
     container_name: sonarqube-db
@@ -107,9 +93,7 @@ services:
       POSTGRES_DB: sonarqube
       POSTGRES_USER: sonar
       POSTGRES_PASSWORD: sonar
-    restart: unless-stopped
 
-  # ---------------- SONARQUBE ----------------
   sonarqube:
     image: sonarqube:10-community
     container_name: sonarqube
@@ -124,9 +108,5 @@ services:
       SONAR_JDBC_USERNAME: sonar
       SONAR_JDBC_PASSWORD: sonar
       SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
-      SONAR_WEB_JAVAOPTS: "-Xmx512m"
     volumes:
       - sonarqube-data:/opt/sonarqube/data
-      - sonarqube-logs:/opt/sonarqube/logs
-      - sonarqube-extensions:/opt/sonarqube/extensions
-    restart: unless-stopped
