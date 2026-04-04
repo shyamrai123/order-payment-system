@@ -44,7 +44,9 @@ pipeline {
                         --network order-payment-system_app-network \
                         -e SONAR_HOST_URL=http://sonarqube:9000 \
                         -e SONAR_TOKEN=\$SONAR_TOKEN \
+                        -e SONAR_SCANNER_OPTS="-Dsonar.projectKey=order-payment-system" \
                         -v \$PWD:/usr/src \
+                        -w /usr/src \
                         sonarsource/sonar-scanner-cli
                     """
                 }
