@@ -31,7 +31,7 @@ pipeline {
                 sh """
                     docker run --rm \
                     -v \$PWD:/app \
-                    -v maven-repo:/root/.m2 \
+                    -v order-payment-system_maven-repo:/root/.m2 \
                     -w /app \
                     maven:3.9.5-eclipse-temurin-17 \
                     mvn clean package -DskipTests -B -ntp
