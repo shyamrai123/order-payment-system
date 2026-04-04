@@ -43,7 +43,7 @@ pipeline {
                         docker run --rm \
                         --network order-payment-system_app-network \
                         -e SONAR_HOST_URL=http://sonarqube:9000 \
-                        -e SONAR_LOGIN=\$SONAR_TOKEN \
+                        -e SONAR_TOKEN=\$SONAR_TOKEN \
                         -v \$PWD:/usr/src \
                         sonarsource/sonar-scanner-cli
                     """
