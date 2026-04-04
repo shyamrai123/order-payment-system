@@ -3,20 +3,13 @@ FROM maven:3.9.5-eclipse-temurin-17 AS builder
 
 WORKDIR /build
 
-# ✅ FIX 1: Force IPv4 (CRITICAL)
 ENV MAVEN_OPTS="-Djava.net.preferIPv4Stack=true"
 
-# ✅ FIX 2: Copy pom.xml first (cache layer)
 COPY pom.xml .
+RUN mvn -B -ntp dependency:go-offline || mvn -B -ntp dependency:go-offline
 
-# ✅ FIX 3: Add retry + no-transfer-progress
-RUN mvn -B -ntp dependency:go-offline || \
-    mvn -B -ntp dependency:go-offline
-
-# Copy source
 COPY src ./src
 
-# ✅ FIX 4: Build with same IPv4 + optimized flags
 RUN mvn -B -ntp clean package -DskipTests
 
 
@@ -36,9 +29,8 @@ USER appuser
 EXPOSE 9090
 
 ENTRYPOINT ["java",
-  "-XX:+UseContainerSupport",
-  "-XX:MaxRAMPercentage=75.0",
-  "-Djava.net.preferIPv4Stack=true",
-  "-Djava.security.egd=file:/dev/./urandom",
-  "-jar", "app.jar"
-]
+ "-XX:+UseContainerSupport",
+ "-XX:MaxRAMPercentage=75.0",
+ "-Djava.net.preferIPv4Stack=true",
+ "-Djava.security.egd=file:/dev/./urandom",
+ "-jar", "app.jar"]
